@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tarefas</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f5f2;
+    --card: #ffffff;
+    --text: #1d1f23;
+    --muted: #6b7078;
+    --line: #e2e2dd;
+    --accent: #2f6fed;
+    --p1: #d92d20;
+    --p2: #e8760c;
+    --p3: #2f6fed;
+    --p4: #8a9099;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --card: #20232a;
+      --text: #e8e9ec;
+      --muted: #9299a3;
+      --line: #30343d;
+      --accent: #6c9bff;
+      --p1: #ff6b5e;
+      --p2: #ffa04d;
+      --p3: #6c9bff;
+      --p4: #8a9099;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 system-ui, "Segoe UI", sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  #summary { color: var(--muted); font-size: .9rem; }
+
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], select {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+  }
+  input[type=text]:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  #new-task { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  #new-task input { flex: 1 1 240px; min-width: 0; }
+  #new-task button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  h2 {
+    font-size: .8rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin: 24px 0 8px;
+  }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li.task {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--prio);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+  li.task[data-priority="1"] { --prio: var(--p1); }
+  li.task[data-priority="2"] { --prio: var(--p2); }
+  li.task[data-priority="3"] { --prio: var(--p3); }
+  li.task[data-priority="4"] { --prio: var(--p4); }
+  li.task input[type=checkbox] { width: 20px; height: 20px; flex: none; accent-color: var(--accent); cursor: pointer; }
+  li.task .title {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: text;
+  }
+  li.task .title:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  li.task input.edit { flex: 1; min-width: 0; padding: 4px 6px; }
+  li.task select {
+    flex: none;
+    padding: 4px 6px;
+    font-size: .85rem;
+    color: var(--prio);
+    font-weight: 600;
+  }
+  li.task select option { color: var(--text); font-weight: 400; }
+  li.task button.del {
+    flex: none;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  li.task button.del:hover { color: var(--p1); background: color-mix(in srgb, var(--p1) 12%, transparent); }
+  li.task.done { --prio: var(--line); }
+  li.task.done .title { color: var(--muted); text-decoration: line-through; }
+  .empty { color: var(--muted); padding: 12px 4px; }
+  #error {
+    background: color-mix(in srgb, var(--p1) 14%, var(--card));
+    border: 1px solid var(--p1);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Tarefas</h1>
+    <span id="summary"></span>
+  </header>
+
+  <div id="error" role="alert" hidden></div>
+
+  <form id="new-task" autocomplete="off">
+    <input type="text" id="new-title" placeholder="O que precisa ser feito?" maxlength="300" aria-label="Nova tarefa" required autofocus>
+    <select id="new-priority" aria-label="Prioridade da nova tarefa"></select>
+    <button type="submit">Adicionar</button>
+  </form>
+
+  <h2>A fazer</h2>
+  <ul id="pending"></ul>
+
+  <section id="done-section" hidden>
+    <h2>Concluídas</h2>
+    <ul id="done"></ul>
+  </section>
+</main>
+
+<script>
+const PRIORITIES = { 1: "Urgente", 2: "Alta", 3: "Média", 4: "Baixa" };
+const $ = (id) => document.getElementById(id);
+let tasks = [];
+
+function priorityOptions(select, selected) {
+  for (const [value, label] of Object.entries(PRIORITIES)) {
+    const opt = new Option(label, value);
+    opt.selected = Number(value) === selected;
+    select.add(opt);
+  }
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  return data;
+}
+
+// Executa uma chamada e mostra o erro na tela se falhar; sempre redesenha.
+async function run(fn) {
+  try {
+    await fn();
+    $("error").hidden = true;
+  } catch (err) {
+    $("error").textContent = "Não foi possível salvar: " + err.message;
+    $("error").hidden = false;
+  }
+  render();
+}
+
+function replaceTask(updated) {
+  tasks = tasks.map((t) => (t.id === updated.id ? updated : t));
+}
+
+function patch(id, changes) {
+  return run(async () => replaceTask(await api("PATCH", `/api/tasks/${id}`, changes)));
+}
+
+function startEdit(task, span) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "edit";
+  input.maxLength = 300;
+  input.value = task.title;
+  let finished = false;
+  const finish = (save) => {
+    if (finished) return;
+    finished = true;
+    const title = input.value.trim();
+    if (save && title && title !== task.title) patch(task.id, { title });
+    else render();
+  };
+  input.addEventListener("blur", () => finish(true));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function taskItem(task) {
+  const li = document.createElement("li");
+  li.className = "task" + (task.done ? " done" : "");
+  li.dataset.priority = task.priority;
+
+  const check = document.createElement("input");
+  check.type = "checkbox";
+  check.checked = task.done;
+  check.setAttribute("aria-label", task.done ? "Reabrir tarefa" : "Concluir tarefa");
+  check.addEventListener("change", () => patch(task.id, { done: check.checked }));
+
+  const title = document.createElement("span");
+  title.className = "title";
+  title.textContent = task.title;
+  title.title = "Clique para editar";
+  title.addEventListener("click", () => startEdit(task, title));
+
+  const prio = document.createElement("select");
+  prio.setAttribute("aria-label", "Prioridade");
+  priorityOptions(prio, task.priority);
+  prio.addEventListener("change", () => patch(task.id, { priority: Number(prio.value) }));
+
+  const del = document.createElement("button");
+  del.className = "del";
+  del.textContent = "×";
+  del.title = "Excluir";
+  del.setAttribute("aria-label", "Excluir tarefa");
+  del.addEventListener("click", () => {
+    if (!confirm(`Excluir "${task.title}"?`)) return;
+    run(async () => {
+      await api("DELETE", `/api/tasks/${task.id}`);
+      tasks = tasks.filter((t) => t.id !== task.id);
+    });
+  });
+
+  li.append(check, title);
+  if (!task.done) li.append(prio);
+  li.append(del);
+  return li;
+}
+
+function render() {
+  const pending = tasks
+    .filter((t) => !t.done)
+    .sort((a, b) => a.priority - b.priority || a.createdAt.localeCompare(b.createdAt));
+  const done = tasks
+    .filter((t) => t.done)
+    .sort((a, b) => (b.doneAt || "").localeCompare(a.doneAt || ""));
+
+  $("pending").replaceChildren(...pending.map(taskItem));
+  if (pending.length === 0) {
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = done.length ? "Tudo concluído. 🎉" : "Nenhuma tarefa ainda. Adicione a primeira acima.";
+    $("pending").append(empty);
+  }
+  $("done").replaceChildren(...done.map(taskItem));
+  $("done-section").hidden = done.length === 0;
+  $("summary").textContent = tasks.length
+    ? `${pending.length} a fazer · ${done.length} concluída${done.length === 1 ? "" : "s"}`
+    : "";
+}
+
+priorityOptions($("new-priority"), 3);
+
+$("new-task").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const title = $("new-title").value.trim();
+  if (!title) return;
+  // Limpa já, para não apagar o que for digitado enquanto o servidor responde.
+  $("new-title").value = "";
+  $("new-title").focus();
+  run(async () => {
+    try {
+      tasks.push(await api("POST", "/api/tasks", { title, priority: Number($("new-priority").value) }));
+    } catch (err) {
+      if (!$("new-title").value) $("new-title").value = title;
+      throw err;
+    }
+  });
+});
+
+run(async () => { tasks = await api("GET", "/api/tasks"); });
+</script>
+</body>
+</html>
